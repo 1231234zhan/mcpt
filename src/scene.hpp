@@ -10,25 +10,12 @@
 #include "object.hpp"
 #include "ray.hpp"
 #include "tiny_obj_loader.h"
-
-class Buffer {
-public:
-    Buffer();
-    Buffer(int width, int height);
-    void init(int width, int height);
-    void clear();
-
-    void to_picture(const std::string& jpgfile, int sample_num, flt gamma = 2.0) const;
-
-public:
-    int width, height;
-    std::vector<std::vector<vec3>> b_array;
-};
+#include "buffer.hpp"
 
 class Scene {
 public:
     Scene();
-    Scene(const std::string& objdir);
+    Scene(const std::string& objdir, const std::string& objname);
     void render(const std::string& outfile, int num_sample = 30);
     bool hit(const Ray& ray, const vec2& t_range, HitRecord& rec);
 

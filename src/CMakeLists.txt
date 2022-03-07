@@ -8,4 +8,5 @@ add_library( wheels
     object.cpp
     scene.cpp
     bbox.cpp
+    buffer.cpp
 )

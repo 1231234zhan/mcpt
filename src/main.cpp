@@ -37,16 +37,20 @@ std::uniform_real_distribution<flt> rng { 0, 1 };
 int main(int argc, char** argv)
 {
     signal(SIGSEGV, handler);
+    std::string inputdir = "./";
     std::string inputname = "input";
     int sample_num = 30;
     if (argc > 1) {
-        inputname = std::string(argv[1]);
+        inputdir = std::string(argv[1]);
     }
     if (argc > 2) {
-        sample_num = std::stoi(argv[2]);
+        inputname = std::string(argv[2]);
+    }
+    if (argc > 3) {
+        sample_num = std::stoi(argv[3]);
     }
 
-    Scene scene(inputname);
+    Scene scene(inputdir, inputname);
     Timer timer;
 
     timer.start();

@@ -10,85 +10,23 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "glm/glm.hpp"
 #include "stb/stb_image.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb/stb_image_write.h"
+
 #include "tinyxml2.h"
 
 // #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
+#include "buffer.hpp"
 #include "bvh.hpp"
 #include "camera.hpp"
 #include "global.hpp"
 #include "scene.hpp"
 
-Buffer::Buffer()
-{
-}
-
-Buffer::Buffer(int w, int h)
-{
-    this->init(w, h);
-}
-
-void Buffer::init(int w, int h)
-{
-    this->width = w;
-    this->height = h;
-    b_array.resize(h);
-    for (auto& col : b_array) {
-        col.resize(w);
-    }
-}
-
-void Buffer::clear()
-{
-    vec3 black = vec3(0, 0, 0);
-    for (int y_t = 0; y_t < height; y_t++) {
-        for (int x_t = 0; x_t < width; x_t++) {
-            b_array[y_t][x_t] = black;
-        }
-    }
-}
-
-void Buffer::to_picture(const std::string& jpgfile, int sample_num, flt gamma) const
-{
-    uchar* img = new uchar[height * width * kChannel];
-    int pt = 0;
-    for (int y_t = 0; y_t < height; y_t++) {
-        for (int x_t = 0; x_t < width; x_t++) {
-            vec3 color = b_array[y_t][x_t] / (sample_num * 1.0f);
-
-            // Check if color is in range
-            for (int i = 0; i < 3; i++) {
-                if (color[i] >= 1.0) {
-                    color[i] = 1.0;
-                }
-                if (color[i] < 0) {
-                    ERRORM("Color %d %d %d is negative %f\n", y_t, x_t, i, color[i]);
-                }
-            }
-            // Gamma correction
-            for (int i = 0; i < 3; i++) {
-                color[i] = powf(color[i], 1 / gamma);
-            }
-
-            for (int i = 0; i < 3; i++) {
-                img[pt + i] = static_cast<uchar>(color[i] * 255);
-            }
-            pt = pt + 3;
-        }
-    }
-
-    stbi_write_jpg(jpgfile.c_str(), width, height, kChannel, img, 100);
-    delete[] img;
-}
-
-void read_objfile(const std::string inputfile, tinyobj::ObjReader& objreader)
+void read_objfile(const std::string& inputfile, tinyobj::ObjReader& objreader)
 {
     tinyobj::ObjReaderConfig objreader_config;
 
-    if (!objreader.ParseFromFile(inputfile + ".obj", objreader_config)) {
+    if (!objreader.ParseFromFile(inputfile, objreader_config)) {
         if (!objreader.Error().empty()) {
             ERRORM("TinyObjReader %s\n", objreader.Error().c_str());
         }
@@ -102,6 +40,7 @@ void read_objfile(const std::string inputfile, tinyobj::ObjReader& objreader)
 
 void read_materials(const std::vector<tinyobj::material_t>& materi_list,
     const tinyxml2::XMLDocument& xmlconfig,
+    const std::string& objdir,
     std::vector<Material*>& mat_ptr_list)
 {
     // Obtain all the light arguments in xml file
@@ -172,7 +111,7 @@ void read_materials(const std::vector<tinyobj::material_t>& materi_list,
             material->has_texture = true;
             auto& texture = material->texture;
             int load_channel;
-            texture.t_ptr = stbi_loadf(materi_tinyobj.diffuse_texname.c_str(), &(texture.width), &(texture.height), &load_channel, kChannel);
+            texture.t_ptr = stbi_loadf((objdir + materi_tinyobj.diffuse_texname).c_str(), &(texture.width), &(texture.height), &load_channel, kChannel);
             if (!texture.t_ptr) {
                 ERRORM("Cannot load texture %s\n", materi_tinyobj.diffuse_texname.c_str());
             }
@@ -268,14 +207,14 @@ void save_obj_and_mat(const std::vector<tinyobj::shape_t>& shapes,
     }
 }
 
-Scene::Scene(const std::string& objdir)
+Scene::Scene(const std::string& objdir, const std::string& objname)
 {
     tinyobj::ObjReader reader;
-    read_objfile(objdir, reader);
+    read_objfile(objdir + objname + ".obj", reader);
 
     tinyxml2::XMLDocument xmlconfig;
 
-    if (xmlconfig.LoadFile((objdir + ".xml").c_str()) != 0) {
+    if (xmlconfig.LoadFile((objdir + objname + ".xml").c_str()) != 0) {
         ERRORM("xml file error code %d\n", xmlconfig.ErrorID());
     }
 
@@ -283,7 +222,7 @@ Scene::Scene(const std::string& objdir)
     auto& attrib = reader.GetAttrib();
     auto& materi_list = reader.GetMaterials();
 
-    read_materials(materi_list, xmlconfig, this->materials);
+    read_materials(materi_list, xmlconfig, objdir, this->materials);
 
     size_t num_faces = 0;
 
