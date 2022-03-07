@@ -22,15 +22,12 @@ PhongMaterial::PhongMaterial()
 vec3 to_world(const vec3& p_local, const vec3& axisz)
 {
     // Tranform the local coordinate to the world
-
+    // following tranformation may be biased
     vec3 axisy;
-    // To avoid that `wo` and `axisz` have the same direction,
-    // we should manually provide an `axisy` vector
-    if (fabsf(axisz.x) > 0.5f) {
-        axisy = glm::normalize(vec3(axisz.z, 0, -axisz.x));
-    } else {
-        axisy = glm::normalize(vec3(0, axisz.z, -axisz.y));
-    }
+    do {
+        axisy = vec3(uniform(-1, 1), uniform(-1, 1), uniform(-1, 1));
+    } while (glm::cross(axisy, axisz).length() < kEps);
+    axisy = glm::normalize(glm::cross(axisy, axisz));
     vec3 axisx = glm::normalize(glm::cross(axisy, axisz));
 
     mat3 trans_mat = mat3(axisx, axisy, axisz);
@@ -71,7 +68,7 @@ flt PhongMaterial::sample_specular(const vec3& wo, const HitRecord& rec, vec3& w
 {
     // Phong BRDF importance sampling
     // https://agraphicsguynotes.com/posts/sample_microfacet_brdf/
-    bool if_bling_phong = true;
+    bool if_bling_phong = false;
     flt phi = uniform(0, 2 * PI);
 
     flt cos_theta = powf(uniform(), 1.0f / (Ns + 1));
@@ -85,9 +82,6 @@ flt PhongMaterial::sample_specular(const vec3& wo, const HitRecord& rec, vec3& w
         axisz = 2.0f * glm::dot(rec.normal, wo) * rec.normal - wo;
     }
     vec3 p_world = to_world(p_local, axisz);
-
-    if (glm::dot(p_world, rec.normal) < 0)
-        ERRORM("direction cosine is negative: sample_specular\n");
 
     flt pdf;
     if (if_bling_phong) {
@@ -143,7 +137,7 @@ vec3 PhongMaterial::bsdf(const vec3& wo, const vec3& wi, const HitRecord& rec) c
 {
     // http://www.cim.mcgill.ca/~derek/ecse689_a3.html
 
-    bool if_bling_phong = true;
+    bool if_bling_phong = false;
     vec3 half = glm::normalize(wo + wi);
     vec3 new_Kd;
     if (has_texture)
@@ -160,7 +154,7 @@ vec3 PhongMaterial::bsdf(const vec3& wo, const vec3& wi, const HitRecord& rec) c
         fr = fr / PI;
     } else {
         vec3 wr = 2.0f * glm::dot(rec.normal, wi) * rec.normal - wi;
-        fr = new_Kd + 0.125f * Ks * (Ns + 2) * powf(glm::dot(wr, wo), Ns);
+        fr = new_Kd + 0.5f * Ks * (Ns + 2) * powf(glm::dot(wr, wo), Ns);
         fr = fr / PI;
     }
 
@@ -210,9 +204,9 @@ GlassMaterial::GlassMaterial()
 // https://raytracing.github.io/books/RayTracingInOneWeekend.html#dielectrics
 vec3 refract(const vec3& wo, const vec3& normal, flt ior)
 {
-    flt cos_theta = std::min(dot(wo, normal), 1.0f);
+    flt cos_theta = glm::dot(wo, normal);
     vec3 r_out_perp = ior * (-wo + cos_theta * normal);
-    vec3 r_out_parallel = -sqrtf(fabsf(1.0f - glm::dot(r_out_perp, r_out_perp))) * normal;
+    vec3 r_out_parallel = -sqrtf(1.0f - glm::dot(r_out_perp, r_out_perp)) * normal;
     return r_out_perp + r_out_parallel;
 }
 
@@ -221,34 +215,36 @@ vec3 reflect(const vec3& wo, const vec3& normal)
     return 2.0f * glm::dot(normal, wo) * normal - wo;
 }
 
-flt reflectance(double cosine, double ref_idx)
+flt reflectance(flt cosine, flt ref_idx)
 {
     // Use Schlick's approximation for reflectance.
     auto r0 = (1 - ref_idx) / (1 + ref_idx);
     r0 = r0 * r0;
-    return r0 + (1 - r0) * pow((1 - cosine), 5);
+    return r0 + (1 - r0) * powf((1 - cosine), 5);
 }
 
 flt GlassMaterial::scatter(const vec3& wo, const HitRecord& rec, vec3& wi) const
 {
     flt ior = glm::dot(rec.normal, wo) > 0 ? 1.0f / Ni : Ni;
+    vec3 normal = glm::dot(rec.normal, wo) > 0 ? rec.normal : -rec.normal;
 
-    flt cos_theta = std::min(dot(wo, rec.normal), 1.0f);
+    flt cos_theta = glm::dot(wo, normal);
     flt sin_theta = sqrtf(1.0f - cos_theta * cos_theta);
 
     bool cannot_refract = ior * sin_theta > 1.0;
 
     if (cannot_refract || reflectance(cos_theta, ior) > uniform())
-        wi = reflect(wo, rec.normal);
+        wi = reflect(wo, normal);
     else
-        wi = refract(wo, rec.normal, ior);
+        wi = refract(wo, normal, ior);
 
+    wi = glm::normalize(wi);
     return 1.0f;
 }
 
 vec3 GlassMaterial::bsdf(const vec3& wo, const vec3& wi, const HitRecord& rec) const
 {
-    return vec3(1.0f);
+    return vec3(0.9f);
 }
 
 flt GlassMaterial::pdf(const vec3& wo, const HitRecord& rec, const vec3& wi) const

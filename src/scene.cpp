@@ -397,6 +397,7 @@ vec3 Scene::Li(const Ray& init_ray, const Hittable* world)
         // glass material
         if (rec.mat->type(emissive_color) == Material::GLASS) {
             rec.mat->scatter(wo, rec, wi);
+            throughput *= rec.mat->bsdf(wo, wi, rec);
             ray = Ray(rec.p, wi);
             continue;
         }
@@ -435,9 +436,6 @@ void Scene::render(const std::string& outfile, int num_sample)
                 vec3 light = Li(camera.cast_ray(x_t, y_t), bvh_root);
 
                 if (std::isfinite(light[0]) && std::isfinite(light[1]) && std::isfinite(light[2])) {
-                    // for (int i = 0; i < 3; i++) {
-                    //     light[i] = light[i] > 10.0f ? 10.0 : light[i];
-                    // }
                     buffer.b_array[y_t][x_t] += light;
                 } else {
                     DEBUGM("Not finite number at sample %d x %d y %d\n", now_sample, x_t, y_t);

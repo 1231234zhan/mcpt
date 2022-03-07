@@ -30,7 +30,7 @@ Triangle::Triangle(const vec3& p1, const vec3& p2, const vec3& p3)
         box.update(p[i]);
     }
 
-    area = fabsf(glm::length(glm::cross(p[1] - p[0], p[2] - p[0])));
+    area = 0.5 * fabsf(glm::length(glm::cross(p[1] - p[0], p[2] - p[0])));
 }
 
 // Möller–Trumbore intersection algorithm
