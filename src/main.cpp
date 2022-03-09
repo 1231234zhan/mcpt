@@ -30,10 +30,6 @@ void handler(int sig)
 }
 /******************************************/
 
-std::random_device dev;
-std::mt19937 mt(dev());
-std::uniform_real_distribution<flt> rng { 0, 1 };
-
 int main(int argc, char** argv)
 {
     signal(SIGSEGV, handler);

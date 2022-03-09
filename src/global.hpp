@@ -72,16 +72,15 @@ inline int sign(T x)
 }
 
 template <typename T>
-inline int sq(T x)
+inline T sq(T x)
 {
     return x * x;
 }
 
-extern std::random_device dev;
-extern std::mt19937 mt;
-extern std::uniform_real_distribution<flt> rng;
-
 inline flt uniform(flt l = 0.0, flt h = 1.0)
 {
-    return l + (h - l) * rng(mt);
+    static thread_local std::random_device dev;
+    static thread_local std::mt19937 mt(dev());
+    std::uniform_real_distribution<flt> rng(l, h);
+    return rng(mt);
 }

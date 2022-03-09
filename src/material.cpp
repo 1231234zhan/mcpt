@@ -146,7 +146,6 @@ vec3 PhongMaterial::bsdf(const vec3& wo, const vec3& wi, const HitRecord& rec) c
         new_Kd = Kd;
 
     vec3 fr;
-    // new_Kd /= 2;
     if (glm::dot(half, rec.normal) < 0)
         ERRORM("direction cosine is negative: bsdf %f\n", glm::dot(half, rec.normal));
     if (if_bling_phong) {

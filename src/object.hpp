@@ -15,10 +15,8 @@ public:
 
 class Emissive {
 public:
-    // TODO: maybe useless
     virtual flt get_area() const = 0;
 
-    // virtual vec3 sample_point() const = 0;
     virtual flt sample_ray(const HitRecord& rec, const Hittable* world, HitRecord& light_rec, vec3& wi) const = 0;
     virtual flt pdf(const Ray& ray, const Hittable* world, HitRecord& light_rec) const = 0;
 };

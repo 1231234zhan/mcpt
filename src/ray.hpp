@@ -26,6 +26,5 @@ struct HitRecord {
     flt t;
     vec2 uv;
     Material* mat;
-    // int obj_id;
     Hittable* obj;
 };

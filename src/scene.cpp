@@ -106,7 +106,6 @@ void read_materials(const std::vector<tinyobj::material_t>& materi_list,
         }
 
         // if a material has texture
-        // TODO: load picture path
         if (materi_tinyobj.diffuse_texname.length() > 0) {
             material->has_texture = true;
             auto& texture = material->texture;
@@ -368,7 +367,7 @@ void Scene::render(const std::string& outfile, int num_sample)
 {
     buffer.clear();
     INFO("Begin render images\n");
-    for (int now_sample = 0; now_sample < num_sample; now_sample++) {
+    for (int now_sample = 1; now_sample <= num_sample; now_sample++) {
 #pragma omp parallel for schedule(dynamic)
         for (int x_t = 0; x_t < buffer.width; x_t++) {
             for (int y_t = 0; y_t < buffer.height; y_t++) {
@@ -383,7 +382,7 @@ void Scene::render(const std::string& outfile, int num_sample)
         }
         if (now_sample % 5 == 0) {
             INFO("sample num: %d\n", now_sample);
-            buffer.to_picture(outfile, now_sample + 1);
+            buffer.to_picture(outfile, now_sample);
         }
     }
 
