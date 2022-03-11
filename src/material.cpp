@@ -6,6 +6,8 @@
 #include "global.hpp"
 #include "material.hpp"
 
+const bool is_bling_phong = false;
+
 Texture::Texture()
     : t_ptr(NULL)
     , width(0)
@@ -55,12 +57,10 @@ flt PhongMaterial::sample_lambertian(const vec3& wo, const HitRecord& rec, vec3&
     flt cos_theta = sqrtf(1.0f - uniform());
     flt cos_phi = cosf(phi);
     vec3 p_local = angle_to_cartesian(cos_theta, cos_phi);
-    vec3 p_world = to_world(p_local, rec.normal);
-
-    wi = p_world;
-    if (glm::dot(wi, rec.normal) < 0)
-        ERRORM("direction cosine is negative: sample_lambertian\n");
+    wi = to_world(p_local, rec.normal);
     flt pdf = cos_theta / PI;
+    if (glm::dot(wi, rec.normal) <= 0)
+        pdf = 0;
     return pdf;
 }
 
@@ -68,32 +68,25 @@ flt PhongMaterial::sample_specular(const vec3& wo, const HitRecord& rec, vec3& w
 {
     // Phong BRDF importance sampling
     // https://agraphicsguynotes.com/posts/sample_microfacet_brdf/
-    bool if_bling_phong = false;
+    flt pdf;
     flt phi = uniform(0, 2 * PI);
-
     flt cos_theta = powf(uniform(), 1.0f / (Ns + 1));
     flt cos_phi = cosf(phi);
     vec3 p_local = angle_to_cartesian(cos_theta, cos_phi);
 
-    vec3 axisz;
-    if (if_bling_phong)
-        axisz = rec.normal;
-    else {
-        axisz = 2.0f * glm::dot(rec.normal, wo) * rec.normal - wo;
-    }
-    vec3 p_world = to_world(p_local, axisz);
-
-    flt pdf;
-    if (if_bling_phong) {
-        flt foo = glm::dot(p_world, wo);
-        wi = 2.0f * foo * p_world - wo;
+    if (is_bling_phong) {
+        vec3 half = to_world(p_local, rec.normal);
+        flt cos_out_half = glm::dot(half, wo);
+        wi = 2.0f * cos_out_half * half - wo;
         pdf = (Ns + 1) * powf(cos_theta, Ns) / (2 * PI);
-        pdf /= (4 * foo);
+        pdf /= (4 * cos_out_half);
     } else {
-        wi = p_world;
+        vec3 wr_out = 2.0f * glm::dot(rec.normal, wo) * rec.normal - wo;
+        wi = to_world(p_local, wr_out);
         pdf = (Ns + 1) * powf(cos_theta, Ns) / (2 * PI);
     }
-
+    if (glm::dot(rec.normal, wi) <= 0)
+        pdf = 0.0;
     return pdf;
 }
 
@@ -118,7 +111,7 @@ flt PhongMaterial::scatter(const vec3& wo, const HitRecord& rec, vec3& wi) const
         pdf_lam = pdf_lambertian(wo, rec.normal, wi);
     }
 
-    if (glm::dot(wi, rec.normal) < 0)
+    if (glm::dot(wi, rec.normal) <= 0)
         return 0.0f;
 
     return sample_prob * pdf_lam + (1.0f - sample_prob) * pdf_spe;
@@ -137,18 +130,14 @@ vec3 PhongMaterial::bsdf(const vec3& wo, const vec3& wi, const HitRecord& rec) c
 {
     // http://www.cim.mcgill.ca/~derek/ecse689_a3.html
 
-    bool if_bling_phong = false;
-    vec3 half = glm::normalize(wo + wi);
-    vec3 new_Kd;
-    if (has_texture)
-        new_Kd = texture.at(rec.uv);
-    else
-        new_Kd = Kd;
+    if (glm::dot(wi, rec.normal) <= 0)
+        return vec3(0.0);
 
+    vec3 new_Kd = has_texture ? texture.at(rec.uv) : Kd;
     vec3 fr;
-    if (glm::dot(half, rec.normal) < 0)
-        ERRORM("direction cosine is negative: bsdf %f\n", glm::dot(half, rec.normal));
-    if (if_bling_phong) {
+
+    if (is_bling_phong) {
+        vec3 half = glm::normalize(wo + wi);
         fr = new_Kd + 0.125f * Ks * (Ns + 2) * powf(glm::dot(half, rec.normal), Ns);
         fr = fr / PI;
     } else {
@@ -168,21 +157,26 @@ flt PhongMaterial::pdf_lambertian(const vec3& wo, const vec3& normal, const vec3
 
 flt PhongMaterial::pdf_specular(const vec3& wo, const vec3& normal, const vec3& wi) const
 {
-    vec3 half = glm::normalize(wo + wi);
-    if (glm::dot(half, normal) < 0)
-        ERRORM("direction cosine is negative: pdf_specular %f\n", glm::dot(half, normal));
-    flt pdf = (Ns + 1) * powf(glm::dot(normal, half), Ns) / (2 * PI);
-    pdf /= (4 * glm::dot(half, wo));
+    flt pdf = 0.0f;
+    if (glm::dot(normal, wi) <= 0)
+        return 0.0f;
+
+    if (is_bling_phong) {
+        vec3 half = glm::normalize(wo + wi);
+        pdf = (Ns + 1) * powf(glm::dot(normal, half), Ns) / (2 * PI);
+        pdf /= (4 * glm::dot(half, wo));
+    } else {
+        vec3 wr_out = 2.0f * glm::dot(normal, wo) * normal - wo;
+        pdf = (Ns + 1) * powf(glm::dot(wi, wr_out), Ns) / (2 * PI);
+        if (glm::dot(wi, wr_out) <= 0)
+            pdf = 0;
+    }
     return pdf;
 }
 
 flt PhongMaterial::pdf(const vec3& wo, const HitRecord& rec, const vec3& wi) const
 {
-    vec3 new_Kd;
-    if (has_texture)
-        new_Kd = texture.at(rec.uv);
-    else
-        new_Kd = Kd;
+    vec3 new_Kd = has_texture ? texture.at(rec.uv) : Kd;
 
     if (glm::dot(rec.normal, wi) < 0)
         return 0.0f;
